@@ -1,5 +1,9 @@
 package store
 
+import "errors"
+
+var KeyNotFoundError = errors.New("key not found")
+
 type DB interface {
 	Init() error
 	Get(key string) (string, error)

@@ -8,25 +8,24 @@ import (
 	"time"
 
 	"github.com/niradler/go-ratelimit/pkg/store"
+	"github.com/niradler/go-ratelimit/pkg/strategies"
 )
-
-type Strategy interface {
-	Use(value string) (string, error)
-	Release(value string) (string, error)
-	Reset() (string, error)
-	Next(value string) (time.Time, error)
-	Capacity(value string) (int, error)
-}
 
 type KeyGenerator func(ctx context.Context) (string, error)
 
 type RateLimiter struct {
 	DB       store.DB
-	Strategy Strategy
+	Strategy strategies.Strategy
 	KeyFunc  KeyGenerator
 }
 
-func NewRateLimiter(config RateLimiter) (*RateLimiter, error) {
+type RateLimiterConfig struct {
+	DB       store.DB
+	Strategy strategies.Strategy
+	KeyFunc  KeyGenerator
+}
+
+func NewRateLimiter(config RateLimiterConfig) (*RateLimiter, error) {
 	if config.Strategy == nil {
 		return nil, errors.New("strategy cannot be nil")
 	}
@@ -86,29 +85,6 @@ func (rl *RateLimiter) Use(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (rl *RateLimiter) Release(ctx context.Context) error {
-	rawKey, err := rl.KeyFunc(ctx)
-	if err != nil {
-		return err
-	}
-	hashedKey := hashKey(rawKey)
-	value, err := rl.DB.Get(hashedKey)
-	if err != nil {
-		if errors.Is(err, store.KeyNotFoundError) {
-			value = ""
-		} else {
-			return err
-		}
-	}
-
-	newValue, err := rl.Strategy.Release(value)
-	if err != nil {
-		return err
-	}
-
-	return rl.DB.Set(hashedKey, newValue)
-}
-
 func (rl *RateLimiter) Capacity(ctx context.Context) (int, error) {
 	rawKey, err := rl.KeyFunc(ctx)
 	if err != nil {
@@ -121,6 +97,20 @@ func (rl *RateLimiter) Capacity(ctx context.Context) (int, error) {
 	}
 
 	return rl.Strategy.Capacity(value)
+}
+
+func (rl *RateLimiter) Next(ctx context.Context) (time.Time, error) {
+	rawKey, err := rl.KeyFunc(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	hashedKey := hashKey(rawKey)
+	value, err := rl.DB.Get(hashedKey)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return rl.Strategy.Next(value)
 }
 
 func hashKey(key string) string {

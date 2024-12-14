@@ -1,11 +1,8 @@
 package store
 
 import (
-	"errors"
 	"sync"
 )
-
-var KeyNotFoundError = errors.New("key not found")
 
 type InMemoryStore struct {
 	data map[string]string

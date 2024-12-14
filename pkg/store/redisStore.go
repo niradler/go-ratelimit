@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -12,12 +11,10 @@ type RedisStore struct {
 	ctx    context.Context
 }
 
-func NewRedisStore(addr string, password string, db int) *RedisStore {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       db,
-	})
+type NewRedisStoreOptions = redis.Options
+
+func NewRedisStore(options NewRedisStoreOptions) *RedisStore {
+	rdb := redis.NewClient(&options)
 	return &RedisStore{
 		client: rdb,
 		ctx:    context.Background(),
@@ -33,7 +30,7 @@ func (s *RedisStore) Init() error {
 func (s *RedisStore) Get(key string) (string, error) {
 	val, err := s.client.Get(s.ctx, key).Result()
 	if err == redis.Nil {
-		return "", errors.New("key not found")
+		return "", KeyNotFoundError
 	} else if err != nil {
 		return "", err
 	}
